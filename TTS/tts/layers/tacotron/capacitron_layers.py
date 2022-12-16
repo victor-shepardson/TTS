@@ -20,9 +20,10 @@ class CapacitronVAE(nn.Module):
     ):
         super().__init__()
         # Init distributions
-        self.prior_distribution = MVN(
-            torch.zeros(capacitron_VAE_embedding_dim), torch.eye(capacitron_VAE_embedding_dim)
-        )
+        self.latent_size = capacitron_VAE_embedding_dim
+        # self.prior_distribution = MVN(
+        #     torch.zeros(capacitron_VAE_embedding_dim), torch.eye(capacitron_VAE_embedding_dim)
+        # )
         self.approximate_posterior_distribution = None
         # define output ReferenceEncoder dim to the capacitron_VAE_embedding_dim
         self.encoder = ReferenceEncoder(num_mel, out_dim=reference_encoder_out_dim)
@@ -38,6 +39,13 @@ class CapacitronVAE(nn.Module):
             # TODO: Test a multispeaker model!
             mlp_input_dimension += speaker_embedding_dim
         self.post_encoder_mlp = PostEncoderMLP(mlp_input_dimension, capacitron_VAE_embedding_dim)
+
+    @property
+    def prior_distribution(self):
+        return MVN(
+            self.beta.new_zeros(self.latent_size), 
+            torch.eye(self.latent_size, device=self.beta.device)
+        )
 
     def forward(self, reference_mel_info=None, text_info=None, speaker_embedding=None):
         # Use reference
@@ -60,8 +68,8 @@ class CapacitronVAE(nn.Module):
             # an MLP to produce the parameteres for the approximate poterior distributions
             mu, sigma = self.post_encoder_mlp(enc_out)
             # convert to cpu because prior_distribution was created on cpu
-            mu = mu.cpu()
-            sigma = sigma.cpu()
+            # mu = mu.cpu()
+            # sigma = sigma.cpu()
 
             # Sample from the posterior: z ~ q(z|x)
             self.approximate_posterior_distribution = MVN(mu, torch.diag_embed(sigma))
@@ -88,9 +96,11 @@ class ReferenceEncoder(nn.Module):
         self.num_mel = num_mel
         filters = [1] + [32, 32, 64, 64, 128, 128]
         num_layers = len(filters) - 1
+        # TODO: reduce stride for some layers when num_mels < 64
         convs = [
             nn.Conv2d(
                 in_channels=filters[i], out_channels=filters[i + 1], kernel_size=(3, 3), stride=(2, 2), padding=(2, 2)
+                # in_channels=filters[i], out_channels=filters[i + 1], kernel_size=(3, 3), stride=(2, i%2 + 1), padding=(2, 2)
             )
             for i in range(num_layers)
         ]
@@ -135,6 +145,7 @@ class ReferenceEncoder(nn.Module):
             ) < valid_lengths.unsqueeze(1)
             mask = mask.expand(1, 1, -1, -1).transpose(2, 0).transpose(-1, 2)  # [batch_size, 1, post_conv_max_width, 1]
             x = x * mask
+
 
         x = x.transpose(1, 2)
         # x: 4D tensor [batch_size, post_conv_width,

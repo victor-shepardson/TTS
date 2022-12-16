@@ -53,6 +53,7 @@ class Tacotron2(BaseTacotron):
 
         super().__init__(config, ap, tokenizer, speaker_manager)
 
+        # note: this line does nothing since decoder_output_dim gets set in the following loop
         self.decoder_output_dim = config.out_channels
 
         # pass all config fields to `self`

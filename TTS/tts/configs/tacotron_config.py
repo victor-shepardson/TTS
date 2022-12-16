@@ -232,4 +232,4 @@ class TacotronConfig(BaseTTSConfig):
                 self.audio.fft_size // 2 + 1
             ), f"{self.out_channels} vs {self.audio.fft_size // 2 + 1}"
         if self.model == "tacotron2" and self.audio is not None:
-            assert self.out_channels == self.audio.num_mels
+            assert self.out_channels == self.audio.num_mels, f'{self.out_channels=}, {self.audio.num_mels=}'
